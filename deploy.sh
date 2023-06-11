@@ -10,8 +10,8 @@ if [[ ! -z "${LD_LIBRARY_PATH}" ]]; then
 fi
 
 
-module unload cuda
-module unload gcc
+module unload cuda && echo "no module function available. Probably not on a slurm cluster."
+module unload gcc && echo "no module function available. Probably not on a slurm cluster."
 
 rm -rf dist build
 make cleaneggs
@@ -133,17 +133,6 @@ export CUDA_HOME=$BASE_PATH/cuda-12.1
 make cuda12x CUDA_VERSION=121
 
 if [ ! -f "./bitsandbytes/libbitsandbytes_cuda121.so" ]; then
-  # Control will enter here if $DIRECTORY doesn't exist.
-  echo "Compilation unsuccessul!" 1>&2
-  exit 64
-fi
-
-
-make clean
-export CUDA_HOME=$BASE_PATH/cuda-10.2
-make cuda10x_nomatmul CUDA_VERSION=102
-
-if [ ! -f "./bitsandbytes/libbitsandbytes_cuda102_nocublaslt.so" ]; then
   # Control will enter here if $DIRECTORY doesn't exist.
   echo "Compilation unsuccessul!" 1>&2
   exit 64

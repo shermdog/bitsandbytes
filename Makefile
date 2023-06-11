@@ -2,6 +2,7 @@ MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 ROOT_DIR := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
 
 GPP:= /usr/bin/g++
+#GPP:= /sw/gcc/11.2.0/bin/g++
 ifeq ($(CUDA_HOME),)
 	CUDA_HOME:= $(shell which nvcc | rev | cut -d'/' -f3- | rev)
 endif
@@ -13,6 +14,7 @@ ifndef CUDA_VERSION
 $(warning WARNING: CUDA_VERSION not set. Call make with CUDA string, for example: make cuda11x CUDA_VERSION=115 or make cpuonly CUDA_VERSION=CPU)
 CUDA_VERSION:=
 endif
+
 
 
 NVCC := $(CUDA_HOME)/bin/nvcc
@@ -38,17 +40,11 @@ COMPUTE_CAPABILITY += -gencode arch=compute_52,code=sm_52 # Maxwell
 COMPUTE_CAPABILITY += -gencode arch=compute_60,code=sm_60 # Pascal
 COMPUTE_CAPABILITY += -gencode arch=compute_61,code=sm_61 # Pascal
 COMPUTE_CAPABILITY += -gencode arch=compute_70,code=sm_70 # Volta
-COMPUTE_CAPABILITY += -gencode arch=compute_72,code=sm_72 # Volta
 
 CC_KEPLER := -gencode arch=compute_35,code=sm_35 # Kepler
 CC_KEPLER += -gencode arch=compute_37,code=sm_37 # Kepler
 
 # Later versions of CUDA support the new architectures
-CC_CUDA10x += -gencode arch=compute_75,code=sm_75
-
-CC_CUDA110 := -gencode arch=compute_75,code=sm_75
-CC_CUDA110 += -gencode arch=compute_80,code=sm_80
-
 CC_CUDA11x := -gencode arch=compute_75,code=sm_75
 CC_CUDA11x += -gencode arch=compute_80,code=sm_80
 CC_CUDA11x += -gencode arch=compute_86,code=sm_86
