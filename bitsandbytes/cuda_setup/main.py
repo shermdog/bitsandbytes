@@ -380,7 +380,9 @@ def evaluate_cuda_setup():
         print(('Welcome to bitsandbytes. For bug reports, please run\n\npython -m bitsandbytes\n\n'),
               ('and submit this information together with your error trace to: https://github.com/TimDettmers/bitsandbytes/issues'))
         print('='*80)
-    if not torch.cuda.is_available(): return 'libbitsandbytes_cpu.so', None, None, None, None
+
+    if not torch.cuda.is_available(): return 'libsbitsandbytes_cpu.so', None, None, None, None
+    if torch.version.hip: return 'libbitsandbytes_hip_nohipblaslt.so', None, None, None, None
 
     cuda_setup = CUDASetup.get_instance()
     cudart_path = determine_cuda_runtime_lib_path()

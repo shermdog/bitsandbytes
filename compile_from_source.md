@@ -33,3 +33,14 @@ You can set `CUDA_HOME` to `/usr/local/cuda-11.7`. For example, you might be abl
 
 
 If you have problems compiling the library with these instructions from source, please open an issue.
+
+## ROCm
+Basic steps.
+1. `make hip`
+2. `python setup.py install`
+
+To run these steps you will need to have the hipcc compiler installed that comes with a ROCm installation. hipcc need to be in your path.
+
+If your GPU is not compatible with ROCm, for example if you have an RX 6700 XT, cross compiling to a similar GPU should work.
+To do that set HCC_AMDGPU_TARGET to that similar GPU for example gfx1030 should work for an RX 6700 XT.
+

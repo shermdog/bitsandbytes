@@ -27,8 +27,12 @@ try:
         and open an issue at: https://github.com/TimDettmers/bitsandbytes/issues''')
     lib.cadam32bit_grad_fp32 # runs on an error if the library could not be found -> COMPILED_WITH_CUDA=False
     lib.get_context.restype = ct.c_void_p
-    lib.get_cusparse.restype = ct.c_void_p
-    lib.cget_managed_ptr.restype = ct.c_void_p
+
+    if torch.version.cuda:
+        lib.get_cusparse.restype = ct.c_void_p
+    elif torch.version.hip:
+        lib.get_hipsparse.restype = ct.c_void_p
+
     COMPILED_WITH_CUDA = True
 except AttributeError as ex:
     warn("The installed version of bitsandbytes was compiled without GPU support. "
