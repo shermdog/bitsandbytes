@@ -51,12 +51,12 @@ MAKE_FUNC32(momentum, MOMENTUM, float, 32)
 MAKE_FUNC32(momentum, MOMENTUM, half, 16)
 MAKE_FUNC32(adam, ADAM, float, fp32)
 MAKE_FUNC32(adam, ADAM, half, fp16)
-MAKE_FUNC32(adam, ADAM, __nv_bfloat16, bf16)
+MAKE_FUNC32(adam, ADAM, hipblasBfloat16, bf16)
 MAKE_FUNC32(rmsprop, RMSPROP, float, 32)
 MAKE_FUNC32(rmsprop, RMSPROP, half, 16)
 MAKE_FUNC32(lion, LION, float, fp32)
 MAKE_FUNC32(lion, LION, half, fp16)
-MAKE_FUNC32(lion, LION, __nv_bfloat16, bf16)
+MAKE_FUNC32(lion, LION, hipblasBfloat16, bf16)
 MAKE_FUNC32(adagrad, ADAGRAD, float, 32)
 MAKE_FUNC32(adagrad, ADAGRAD, half, 16)
 
@@ -96,10 +96,10 @@ MAKE_BLOCKWISE8(rmsprop, RMSPROP, half, fp16)
 MAKE_BLOCKWISE8(rmsprop, RMSPROP, float, fp32)
 MAKE_BLOCKWISE8(adagrad, ADAGRAD, half, fp16)
 MAKE_BLOCKWISE8(adagrad, ADAGRAD, float, fp32)
-MAKE_BLOCKWISE8(adam, ADAM, __nv_bfloat16, bf16)
+MAKE_BLOCKWISE8(adam, ADAM, hipblasBfloat16, bf16)
 MAKE_BLOCKWISE8(lion, LION, half, fp16)
 MAKE_BLOCKWISE8(lion, LION, float, fp32)
-MAKE_BLOCKWISE8(lion, LION, __nv_bfloat16, bf16)
+MAKE_BLOCKWISE8(lion, LION, hipblasBfloat16, bf16)
 
 
 void percentileClipping_g32(float * g, float *gnorm_vec, int step, const int n){ percentileClipping<float>(g, gnorm_vec, step, n); }
@@ -237,14 +237,14 @@ extern "C"
 
 	MAKE_CFUNC32(adam, float, fp32)
 	MAKE_CFUNC32(adam, half, fp16)
-	MAKE_CFUNC32(adam, __nv_bfloat16, bf16)
+	MAKE_CFUNC32(adam, hipblasBfloat16, bf16)
 	MAKE_CFUNC32(momentum, float, 32)
 	MAKE_CFUNC32(momentum, half, 16)
 	MAKE_CFUNC32(rmsprop, float, 32)
 	MAKE_CFUNC32(rmsprop, half, 16)
 	MAKE_CFUNC32(lion, float, fp32)
 	MAKE_CFUNC32(lion, half, fp16)
-	MAKE_CFUNC32(lion, __nv_bfloat16, bf16)
+	MAKE_CFUNC32(lion, hipblasBfloat16, bf16)
 	MAKE_CFUNC32(adagrad, float, 32)
 	MAKE_CFUNC32(adagrad, half, 16)
 
@@ -284,10 +284,10 @@ extern "C"
 	MAKE_CBLOCKWISE8(rmsprop, RMSPROP, float, fp32)
 	MAKE_CBLOCKWISE8(adagrad, ADAGRAD, half, fp16)
 	MAKE_CBLOCKWISE8(adagrad, ADAGRAD, float, fp32)
-	MAKE_CBLOCKWISE8(adam, ADAM, __nv_bfloat16, bf16)
+	MAKE_CBLOCKWISE8(adam, ADAM, hipblasBfloat16, bf16)
 	MAKE_CBLOCKWISE8(lion, LION, half, fp16)
 	MAKE_CBLOCKWISE8(lion, LION, float, fp32)
-	MAKE_CBLOCKWISE8(lion, LION, __nv_bfloat16, bf16)
+	MAKE_CBLOCKWISE8(lion, LION, hipblasBfloat16, bf16)
 
 	void cpercentile_clipping_g32(float * g, float *gnorm_vec, int step, const int n){ percentileClipping_g32(g, gnorm_vec, step, n); }
 	void cpercentile_clipping_g16(half * g, float *gnorm_vec, int step, const int n){ percentileClipping_g16(g, gnorm_vec, step, n); }
@@ -403,10 +403,40 @@ extern "C"
 #if BUILD_CUDA
 	void cspmm_coo(ContextCusparse *context, int *A_rowidx, int *A_colidx, half *A_vals, int A_nnz, int A_rows, int A_cols, int B_cols, int ldb, half *B, int ldc, half* C, bool transposed_B)
   { spmm_coo((cusparseHandle_t) context->m_handle, A_rowidx, A_colidx, A_vals, A_nnz, A_rows, A_cols, B_cols, ldb, B, ldc, C, transposed_B); }
+
+	void *cget_managed_ptr(size_t bytes)
+	{
+		void *ptr;
+		CUDA_CHECK_RETURN(cudaMallocManaged(&ptr, bytes, cudaMemAttachHost));
+		CUDA_CHECK_RETURN(cudaPeekAtLastError());
+
+		return ptr;
+	}
+
+	void cprefetch(void *ptr, size_t bytes, int device)
+	{
+		CUDA_CHECK_RETURN(cudaMemPrefetchAsync(ptr, bytes, device, 0));
+		CUDA_CHECK_RETURN(cudaPeekAtLastError());
+	}
 #endif
 #if BUILD_HIP
 	void cspmm_coo(ContextHipsparse *context, int *A_rowidx, int *A_colidx, half *A_vals, int A_nnz, int A_rows, int A_cols, int B_cols, int ldb, half *B, int ldc, half* C, bool transposed_B)
   { spmm_coo((hipsparseHandle_t) context->m_handle, A_rowidx, A_colidx, A_vals, A_nnz, A_rows, A_cols, B_cols, ldb, B, ldc, C, transposed_B); }
+
+	void *cget_managed_ptr(size_t bytes)
+	{
+		void *ptr;
+		HIP_CHECK_RETURN(hipMallocManaged(&ptr, bytes, hipMemAttachHost));
+		HIP_CHECK_RETURN(hipPeekAtLastError());
+
+		return ptr;
+	}
+
+	void cprefetch(void *ptr, size_t bytes, int device)
+	{
+		HIP_CHECK_RETURN(hipMemPrefetchAsync(ptr, bytes, device, 0));
+		HIP_CHECK_RETURN(hipPeekAtLastError());
+	}
 #endif
 
 	void cspmm_coo_very_sparse_naive_fp16(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, half *B, half *out, float *dequant_stats, int nnz_rows, int nnz, int rowsA, int rowsB, int colsB)
@@ -426,21 +456,6 @@ extern "C"
 
 	void cgemm_4bit_inference(int m, int n, int k, half * A,  unsigned char* B,  float *absmax, half * out,  int lda, int ldb, int ldc, int blocksize)
 	{ gemm_4bit_inference(m, n, k, A, B, absmax, out, lda, ldb, ldc, blocksize); }
-
-	void *cget_managed_ptr(size_t bytes)
-	{
-		void *ptr;
-		CUDA_CHECK_RETURN(cudaMallocManaged(&ptr, bytes, cudaMemAttachHost));
-		CUDA_CHECK_RETURN(cudaPeekAtLastError());
-
-		return ptr;
-	}
-
-	void cprefetch(void *ptr, size_t bytes, int device)
-	{
-		CUDA_CHECK_RETURN(cudaMemPrefetchAsync(ptr, bytes, device, 0));
-		CUDA_CHECK_RETURN(cudaPeekAtLastError());
-	}
 
   #define CMAKE_ELEMENTWISE_FUNC(fname, type_name, ctype, FUNC) \
 	void c##fname##_##type_name(ctype *A, ctype *B, ctype value, long n){ fname##_##type_name(A, B, value, n); } \

@@ -56,50 +56,40 @@ void dequantize(float *code, unsigned char *A, float *out, int n)
   HIP_CHECK_RETURN(hipPeekAtLastError());
 }
 
-template <typename T, int STOCHASTIC> void quantizeBlockwise(float * code, T *A, float *absmax, unsigned char *out, float *rand, int rand_offset, int blocksize, const int n)
+template <typename T, int STOCHASTIC, int DATA_TYPE> void quantizeBlockwise(float * code, T *A, float *absmax, unsigned char *out, float *rand, int rand_offset, int blocksize, const int n)
 {
   int num_blocks = n/blocksize;
   num_blocks = n % blocksize == 0 ? num_blocks : num_blocks + 1;
-  if(STOCHASTIC == 1)
-    assert(blocksize == 4096);
 
   if(blocksize == 4096)
-   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 4096, 4, STOCHASTIC>), dim3(num_blocks), dim3(1024), 0, 0, code, A, absmax, out, rand, rand_offset, n);
+   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 4096, 4, STOCHASTIC, 0>), dim3(num_blocks), dim3(1024), 0, 0, code, A, absmax, out, rand, rand_offset, n);
   else if(blocksize == 2048)
-   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 2048, 4, 0>), dim3(num_blocks), dim3(512), 0, 0, code, A, absmax, out, rand, rand_offset, n);
+   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 2048, 4, 0, DATA_TYPE>), dim3(num_blocks), dim3(512), 0, 0, code, A, absmax, out, rand, rand_offset, n);
   else if(blocksize == 1024)
-   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 1024, 4, 0>), dim3(num_blocks), dim3(256), 0, 0, code, A, absmax, out, rand, rand_offset, n);
+   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 1024, 4, 0, DATA_TYPE>), dim3(num_blocks), dim3(256), 0, 0, code, A, absmax, out, rand, rand_offset, n);
   else if(blocksize == 512)
-   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 512, 2, 0>), dim3(num_blocks), dim3(256), 0, 0, code, A, absmax, out, rand, rand_offset, n);
+   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 512, 2, 0, DATA_TYPE>), dim3(num_blocks), dim3(256), 0, 0, code, A, absmax, out, rand, rand_offset, n);
   else if(blocksize == 256)
-   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 256, 2, 0>), dim3(num_blocks), dim3(128), 0, 0, code, A, absmax, out, rand, rand_offset, n);
+   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 256, 2, 0, DATA_TYPE>), dim3(num_blocks), dim3(128), 0, 0, code, A, absmax, out, rand, rand_offset, n);
   else if(blocksize == 128)
-   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 128, 2, 0>), dim3(num_blocks), dim3(64), 0, 0, code, A, absmax, out, rand, rand_offset, n);
+   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 128, 2, 0, DATA_TYPE>), dim3(num_blocks), dim3(64), 0, 0, code, A, absmax, out, rand, rand_offset, n);
   else if(blocksize == 64)
-   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 64, 1, 0>), dim3(num_blocks), dim3(64), 0, 0, code, A, absmax, out, rand, rand_offset, n);
+   hipLaunchKernelGGL(( kQuantizeBlockwise<T, 64, 2, 0, DATA_TYPE>), dim3(num_blocks), dim3(64), 0, 0, code, A, absmax, out, rand, rand_offset, n);
 
 
   HIP_CHECK_RETURN(hipPeekAtLastError());
 }
 
-template<typename T> void dequantizeBlockwise(float *code, unsigned char *A, float *absmax, T *out, int blocksize, const int n)
+template<typename T, int DATA_TYPE> void dequantizeBlockwise(float *code, unsigned char *A, float *absmax, T *out, int blocksize, const int n)
 {
   int num_blocks = n/blocksize;
   num_blocks = n % blocksize == 0 ? num_blocks : num_blocks + 1;
-  if(blocksize == 4096)
-   hipLaunchKernelGGL(( kDequantizeBlockwise<T, 4096, 1024, 4>), dim3(num_blocks), dim3(4096/4), 0, 0, code, A, absmax, out, n);
-  else if(blocksize == 2048)
-   hipLaunchKernelGGL(( kDequantizeBlockwise<T, 2048, 512, 4>), dim3(num_blocks), dim3(2048/4), 0, 0, code, A, absmax, out, n);
-  else if(blocksize == 1024)
-   hipLaunchKernelGGL(( kDequantizeBlockwise<T, 1024, 256, 4>), dim3(num_blocks), dim3(1024/4), 0, 0, code, A, absmax, out, n);
-  else if(blocksize == 512)
-   hipLaunchKernelGGL(( kDequantizeBlockwise<T, 512, 256, 2>), dim3(num_blocks), dim3(512/2), 0, 0, code, A, absmax, out, n);
-  else if(blocksize == 256)
-   hipLaunchKernelGGL(( kDequantizeBlockwise<T, 256, 128, 2>), dim3(num_blocks), dim3(256/2), 0, 0, code, A, absmax, out, n);
-  else if(blocksize == 128)
-   hipLaunchKernelGGL(( kDequantizeBlockwise<T, 128, 64, 2>), dim3(num_blocks), dim3(128/2), 0, 0, code, A, absmax, out, n);
-  else if(blocksize == 64)
-   hipLaunchKernelGGL(( kDequantizeBlockwise<T, 64, 64, 1>), dim3(num_blocks), dim3(64/1), 0, 0, code, A, absmax, out, n);
+  int tile_size = (DATA_TYPE > 0) ? 1024 : 512;
+
+  if(DATA_TYPE > 0)
+    hipLaunchKernelGGL(( kDequantizeBlockwise<T, 512, 64, 8, DATA_TYPE>), dim3((n+tile_size-1)/tile_size), dim3(64), 0, 0, code, A, absmax, out, blocksize/2, n);
+  else
+    hipLaunchKernelGGL(( kDequantizeBlockwise<T, 512, 64, 8, DATA_TYPE>), dim3((n+tile_size-1)/tile_size), dim3(64), 0, 0, code, A, absmax, out, blocksize, n);
 
   HIP_CHECK_RETURN(hipPeekAtLastError());
 }
@@ -130,13 +120,25 @@ template<typename T, int OPTIMIZER> void optimizer32bit(T* g, T* p,
       if(max_unorm > 0.0f)
 			{
 				HIP_CHECK_RETURN(hipMemset(unorm, 0, 1*sizeof(float)));
-			hipLaunchKernelGGL((	kPreconditionOptimizer32bit1State<T, OPTIMIZER, 4096, 8>), dim3(num_blocks), dim3(512), 0, 0, g, p, state1, unorm, beta1, eps, weight_decay, step, lr, gnorm_scale, n);
+			hipLaunchKernelGGL((	kPreconditionOptimizer32bit1State<T, OPTIMIZER, 4096, 8>), dim3(num_blocks), dim3(512), 0, 0, g, p, state1, unorm, beta1, beta2, eps, weight_decay, step, lr, gnorm_scale, n);
         HIP_CHECK_RETURN(hipPeekAtLastError());
 			}
 
-		hipLaunchKernelGGL((	kOptimizer32bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(1024), 0, 0, g, p, state1, unorm, max_unorm, param_norm, beta1, eps, weight_decay, step, lr, gnorm_scale, skip_zeros, n);
+		hipLaunchKernelGGL((	kOptimizer32bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(1024), 0, 0, g, p, state1, unorm, max_unorm, param_norm, beta1, beta2, eps, weight_decay, step, lr, gnorm_scale, skip_zeros, n);
       HIP_CHECK_RETURN(hipPeekAtLastError());
 			break;
+    case LION:
+      // in lion, the momentum update after the parameter update
+      hipLaunchKernelGGL((	kOptimizer32bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(1024), 0, 0, g, p, state1, unorm, max_unorm, param_norm, beta1, beta2, eps, weight_decay, step, lr, gnorm_scale, skip_zeros, n);
+      HIP_CHECK_RETURN(hipPeekAtLastError());
+
+      if(max_unorm > 0.0f)
+      {
+        HIP_CHECK_RETURN(hipMemset(unorm, 0, 1*sizeof(float)));
+        hipLaunchKernelGGL((	kPreconditionOptimizer32bit1State<T, OPTIMIZER, 4096, 8>), dim3(num_blocks), dim3(512), 0, 0, g, p, state1, unorm, beta1, beta2, eps, weight_decay, step, lr, gnorm_scale, n);
+        HIP_CHECK_RETURN(hipPeekAtLastError());
+      }
+      break;
 	}
 }
 
@@ -170,12 +172,22 @@ template<typename T, int OPTIMIZER> void optimizerStatic8bit(T* p, T* g,
     case RMSPROP:
     case ADAGRAD:
 			HIP_CHECK_RETURN(hipMemset(new_max1, 0, 1*sizeof(float)));
-		hipLaunchKernelGGL((	kPreconditionOptimizerStatic8bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(256), 0, 0, p, g, state1, unorm, beta1, eps, step, quantiles1, max1, new_max1, weight_decay, gnorm_scale, n);
+		hipLaunchKernelGGL((	kPreconditionOptimizerStatic8bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(256), 0, 0, p, g, state1, unorm, beta1, beta2, eps, step, quantiles1, max1, new_max1, weight_decay, gnorm_scale, n);
 			HIP_CHECK_RETURN(hipPeekAtLastError());
-		hipLaunchKernelGGL((	kOptimizerStatic8bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(1024), 0, 0, p, g, state1, unorm, max_unorm, param_norm, beta1, eps, step, lr,
+		hipLaunchKernelGGL((	kOptimizerStatic8bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(1024), 0, 0, p, g, state1, unorm, max_unorm, param_norm, beta1, beta2, eps, step, lr,
 																														quantiles1, max1, new_max1, weight_decay, gnorm_scale, n);
 			HIP_CHECK_RETURN(hipPeekAtLastError());
 			break;
+    case LION:
+      // in lion, the momentum update happens after the parameter update
+      hipLaunchKernelGGL((	kOptimizerStatic8bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(1024), 0, 0, p, g, state1, unorm, max_unorm, param_norm, beta1, beta2, eps, step, lr,
+                                                              quantiles1, max1, new_max1, weight_decay, gnorm_scale, n);                                                            
+      HIP_CHECK_RETURN(hipPeekAtLastError());
+
+      HIP_CHECK_RETURN(hipMemset(new_max1, 0, 1*sizeof(float)));
+      hipLaunchKernelGGL((	kPreconditionOptimizerStatic8bit1State<T, OPTIMIZER>), dim3(num_blocks), dim3(256), 0, 0, p, g, state1, unorm, beta1, beta2, eps, step, quantiles1, max1, new_max1, weight_decay, gnorm_scale, n);
+      HIP_CHECK_RETURN(hipPeekAtLastError());
+      break;
 		default:
 			break;
 	}
@@ -649,10 +661,70 @@ template <int FORMAT> void extractOutliers(char * A, int *idx, char *out, int id
   HIP_CHECK_RETURN(hipPeekAtLastError());
 }
 
+template <typename T> void gemm_host(int m, int n, int k, T * A,  T* B,  T * out,  int lda, int ldb, int ldc, int bits)
+{
+
+	int num_blocks = (m+31)/32;
+
+	//cout << num_blocks << endl;
+	//cout << lda << endl;
+	//cout << ldb << endl;
+	//cout << ldc << endl;
+
+	//cout << m << endl;
+	//cout << n << endl;
+	//cout << k << endl;
+  //if(bits == 32)
+    //gemm_device<T, 32, 128><<< num_blocks, 128, 0, 0 >>>(m,  n,  k, A,  B,  out, lda, ldb, ldc);
+    //gemm_device<T, 32, 32><<< num_blocks, 32, 0, 0 >>>(m,  n,  k, A,  B,  out, lda, ldb, ldc);
+  if(bits == 16)
+    //gemm_device<T, 16, 256><<< num_blocks, 256, 0, 0 >>>(m,  n,  k, A,  B,  out, lda, ldb, ldc);
+    gemm_device<T, 16, 160><<< num_blocks, 160, 0, 0 >>>(m,  n,  k, A,  B,  out, lda, ldb, ldc);
+    //gemm_device<T, 16, 128><<< num_blocks, 128, 0, 0 >>>(m,  n,  k, A,  B,  out, lda, ldb, ldc);
+    //gemm_device<T, 16, 96><<< num_blocks, 96, 0, 0 >>>(m,  n,  k, A,  B,  out, lda, ldb, ldc);
+    //gemm_device<T, 16, 32><<< num_blocks, 32, 0, 0 >>>(m,  n,  k, A,  B,  out, lda, ldb, ldc);
+    //gemm_device<T, 16, 64><<< num_blocks, 64, 0, 0 >>>(m,  n,  k, A,  B,  out, lda, ldb, ldc);
+}
+
+template <typename T> void gemm_4bit_inference(int m, int n, int k, T * A,  unsigned char* B,  float *absmax, T * out,  int lda, int ldb, int ldc, int blocksize)
+{
+
+	int num_blocks = (m+31)/32;
+
+	//cout << num_blocks << endl;
+	//cout << lda << endl;
+	//cout << ldb << endl;
+	//cout << ldc << endl;
+
+	//cout << m << endl;
+	//cout << n << endl;
+	//cout << k << endl;
+  kgemm_4bit_inference<T, 160><<< num_blocks, 160, 0, 0 >>>(m,  n,  k, A,  B, absmax, out, lda, ldb, ldc, blocksize);
+  //kgemm_4bit_inference<T, 32><<< num_blocks, 32, 0, 0 >>>(m,  n,  k, A,  B, absmax, out, lda, ldb, ldc, blocksize);
+}
+
+template <typename T, int FUNC> void func(T *A, T *B, T value, long n)
+{
+  int threads = 512;
+  int blocks = n/threads;
+  blocks = n % threads == 0 ? blocks : blocks + 1;
+  blocks = blocks > 65535 ? 65535 : blocks;
+  kfunc<T, FUNC><<<blocks, 512>>>(A, B, value, n);
+  HIP_CHECK_RETURN(hipPeekAtLastError());
+}
+
 //==============================================================
 //                   TEMPLATE DEFINITIONS
 //==============================================================
 
+template void func<float, FILL>(float *A, float *B, float value, long n);
+template void func<unsigned char, FILL>(unsigned char *A, unsigned char *B, unsigned char value, long n);
+template void func<float, ARANGE>(float *A, float *B, float value, long n);
+template void func<float, _MUL>(float *A, float *B, float value, long n);
+
+template void gemm_4bit_inference<half>(int m, int n, int k, half * A,  unsigned char* B,  float *absmax, half * out,  int lda, int ldb, int ldc, int blocksize);
+//template void gemm_host<float>(int m, int n, int k, float * A,  float* B,  float * out,  int lda, int ldb, int ldc, int bits);
+template void gemm_host<half>(int m, int n, int k, half * A,  half* B,  half * out,  int lda, int ldb, int ldc, int bits);
 template void extractOutliers<COL_TURING>(char * A, int *idx, char *out, int idx_size, int rows, int cols);
 template void extractOutliers<COL_AMPERE>(char * A, int *idx, char *out, int idx_size, int rows, int cols);
 
@@ -678,12 +750,20 @@ template void transformRowToFormat<COL_AMPERE, 1>(char * A, char *out, int rows,
 template void estimateQuantiles(half *A, float *code, float offset, int n);
 template void estimateQuantiles(float *A, float *code, float offset, int n);
 
-template void quantizeBlockwise<half, 0>(float * code, half *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
-template void quantizeBlockwise<float, 0>(float * code, float *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
-template void quantizeBlockwise<half, 1>(float * code, half *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
-template void quantizeBlockwise<float, 1>(float * code, float *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
-template void dequantizeBlockwise<half>(float *code, unsigned char *A, float *absmax, half *out, int blocksize, const int n);
-template void dequantizeBlockwise<float>(float *code, unsigned char *A, float *absmax, float *out, int blocksize, const int n);
+template void quantizeBlockwise<half, 1, General8bit>(float * code, half *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
+template void quantizeBlockwise<float, 1, General8bit>(float * code, float *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
+template void quantizeBlockwise<half, 0, General8bit>(float * code, half *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
+template void quantizeBlockwise<float, 0, General8bit>(float * code, float *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
+template void quantizeBlockwise<half, 0, FP4>(float * code, half *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
+template void quantizeBlockwise<float, 0, FP4>(float * code, float *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
+template void quantizeBlockwise<half, 0, NF4>(float * code, half *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
+template void quantizeBlockwise<float, 0, NF4>(float * code, float *A, float *absmax, unsigned char *out, float* rand, int rand_offset, int blocksize, const int n);
+template void dequantizeBlockwise<half, General8bit>(float *code, unsigned char *A, float *absmax, half *out, int blocksize, const int n);
+template void dequantizeBlockwise<float, General8bit>(float *code, unsigned char *A, float *absmax, float *out, int blocksize, const int n);
+template void dequantizeBlockwise<half, FP4>(float *code, unsigned char *A, float *absmax, half *out, int blocksize, const int n);
+template void dequantizeBlockwise<float, FP4>(float *code, unsigned char *A, float *absmax, float *out, int blocksize, const int n);
+template void dequantizeBlockwise<half, NF4>(float *code, unsigned char *A, float *absmax, half *out, int blocksize, const int n);
+template void dequantizeBlockwise<float, NF4>(float *code, unsigned char *A, float *absmax, float *out, int blocksize, const int n);
 
 #define MAKE_optimizer32bit(name, gtype) \
 template void optimizer32bit<gtype, name>(gtype* g, gtype* p, \
@@ -693,10 +773,14 @@ template void optimizer32bit<gtype, name>(gtype* g, gtype* p, \
 
 MAKE_optimizer32bit(ADAM, half)
 MAKE_optimizer32bit(ADAM, float)
+MAKE_optimizer32bit(ADAM, hip_bfloat16)
 MAKE_optimizer32bit(MOMENTUM, half)
 MAKE_optimizer32bit(MOMENTUM, float)
 MAKE_optimizer32bit(RMSPROP, half)
 MAKE_optimizer32bit(RMSPROP, float)
+MAKE_optimizer32bit(LION, half)
+MAKE_optimizer32bit(LION, float)
+MAKE_optimizer32bit(LION, hip_bfloat16)
 MAKE_optimizer32bit(ADAGRAD, half)
 MAKE_optimizer32bit(ADAGRAD, float)
 
@@ -716,6 +800,8 @@ MAKE_optimizerStatic8bit(MOMENTUM, half)
 MAKE_optimizerStatic8bit(MOMENTUM, float)
 MAKE_optimizerStatic8bit(RMSPROP, half)
 MAKE_optimizerStatic8bit(RMSPROP, float)
+MAKE_optimizerStatic8bit(LION, half)
+MAKE_optimizerStatic8bit(LION, float)
 
 #define MAKE_optimizerStatic8bitBlockwise(gtype, optim_name) \
 template void optimizerStatic8bitBlockwise<gtype, optim_name>(gtype* p, gtype* g, \
@@ -728,8 +814,13 @@ MAKE_optimizerStatic8bitBlockwise(half, MOMENTUM);
 MAKE_optimizerStatic8bitBlockwise(float, MOMENTUM);
 MAKE_optimizerStatic8bitBlockwise(half, RMSPROP);
 MAKE_optimizerStatic8bitBlockwise(float, RMSPROP);
+MAKE_optimizerStatic8bitBlockwise(half, LION);
+MAKE_optimizerStatic8bitBlockwise(float, LION);
+MAKE_optimizerStatic8bitBlockwise(hip_bfloat16, LION);
 MAKE_optimizerStatic8bitBlockwise(half, ADAGRAD);
 MAKE_optimizerStatic8bitBlockwise(float, ADAGRAD);
 
 template void percentileClipping(float * g, float *gnorm_vec, int step, const int n);
 template void percentileClipping(half * g, float *gnorm_vec, int step, const int n);
+
+MAKE_optimizerStatic8bitBlockwise(hip_bfloat16, ADAM);
