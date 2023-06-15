@@ -717,13 +717,24 @@ __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float
 
   T vals[NUM_PER_TH];
   float rand_vals[NUM_PER_TH];
-  unsigned char qvals[(DATA_TYPE > 0) ? NUM_PER_TH/2 : NUM_PER_TH];
+  unsigned char qvals[(DATA_TYPE > 0 && NUM_PER_TH > 1) ? NUM_PER_TH/2 : NUM_PER_TH];
   //float local_abs_max = -FLT_MAX;
   float local_abs_max = 0.0f;
   int local_rand_idx = 0;
 
   typedef hipcub::BlockLoad<T, BLOCK_SIZE/NUM_PER_TH, NUM_PER_TH, hipcub::BLOCK_LOAD_WARP_TRANSPOSE> LoadT;
-  typedef hipcub::BlockStore<unsigned char, BLOCK_SIZE/NUM_PER_TH, (DATA_TYPE > 0) ? NUM_PER_TH/2 : NUM_PER_TH, hipcub::BLOCK_STORE_WARP_TRANSPOSE> StoreChar;
+  // if (DATA_TYPE > 0 && NUM_PER_TH > 1) {
+  //   typedef hipcub::BlockStore<unsigned char, BLOCK_SIZE/NUM_PER_TH, (DATA_TYPE > 0 && NUM_PER_TH > 1) ? NUM_PER_TH/2 : NUM_PER_TH, hipcub::BLOCK_STORE_WARP_TRANSPOSE> StoreChar;
+  //   __shared__ typename StoreChar::TempStorage storec;
+  // }
+  // else {
+  //   typedef hipcub::BlockStore<unsigned char, BLOCK_SIZE/NUM_PER_TH, NUM_PER_TH, hipcub::BLOCK_STORE_WARP_TRANSPOSE> StoreChar;
+  //   __shared__ typename StoreChar::TempStorage storec;
+  // }
+  // typedef typename std::conditional<(DATA_TYPE > 0 && NUM_PER_TH > 1),
+  //                                   hipcub::BlockStore<unsigned char, BLOCK_SIZE/NUM_PER_TH, (DATA_TYPE > 0 && NUM_PER_TH > 1) ? NUM_PER_TH/2 : NUM_PER_TH, hipcub::BLOCK_STORE_WARP_TRANSPOSE>,
+  //                                   hipcub::BlockStore<unsigned char, BLOCK_SIZE/NUM_PER_TH, NUM_PER_TH, hipcub::BLOCK_STORE_WARP_TRANSPOSE>>::type StoreChar;
+  typedef hipcub::BlockStore<unsigned char, BLOCK_SIZE/NUM_PER_TH, (DATA_TYPE > 0 && NUM_PER_TH > 1) ? NUM_PER_TH/2 : NUM_PER_TH, hipcub::BLOCK_STORE_WARP_TRANSPOSE> StoreChar;
   typedef hipcub::BlockReduce<float, BLOCK_SIZE/NUM_PER_TH> BlockReduce;
   typedef hipcub::BlockLoad<float, BLOCK_SIZE/NUM_PER_TH, NUM_PER_TH, hipcub::BLOCK_LOAD_WARP_TRANSPOSE> LoadFloat;
 
@@ -808,6 +819,12 @@ __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float
     }
 
     __syncthreads();
+    // if (DATA_TYPE > 0 && NUM_PER_TH > 1) {
+    //   StoreChar(storec).Store(&(out[(DATA_TYPE > 0) ? i/2 : i]), qvals, (DATA_TYPE > 0) ? (valid_items+1)/2 : valid_items);
+    // }
+    // else {
+    //   StoreChar(storec).Store(&(out[i]), qvals, valid_items);
+    // }
     StoreChar(storec).Store(&(out[(DATA_TYPE > 0) ? i/2 : i]), qvals, (DATA_TYPE > 0) ? (valid_items+1)/2 : valid_items);
   }
 }
@@ -3524,7 +3541,7 @@ MAKE_PreconditionOptimizer32bit1State(RMSPROP, half)
 MAKE_PreconditionOptimizer32bit1State(RMSPROP, float)
 MAKE_PreconditionOptimizer32bit1State(LION, half)
 MAKE_PreconditionOptimizer32bit1State(LION, float)
-MAKE_PreconditionOptimizer32bit1State(LION, hip_bfloat16)
+// MAKE_PreconditionOptimizer32bit1State(LION, hip_bfloat16)
 MAKE_PreconditionOptimizer32bit1State(ADAGRAD, half)
 MAKE_PreconditionOptimizer32bit1State(ADAGRAD, float)
 
@@ -3538,7 +3555,7 @@ MAKE_Optimizer32bit1State(RMSPROP, half)
 MAKE_Optimizer32bit1State(RMSPROP, float)
 MAKE_Optimizer32bit1State(LION, half)
 MAKE_Optimizer32bit1State(LION, float)
-MAKE_Optimizer32bit1State(LION, hip_bfloat16)
+// MAKE_Optimizer32bit1State(LION, hip_bfloat16)
 MAKE_Optimizer32bit1State(ADAGRAD, half)
 MAKE_Optimizer32bit1State(ADAGRAD, float)
 
@@ -3550,14 +3567,14 @@ template __global__ void kPreconditionOptimizer32bit2State<gtype, oname, 4096, 8
 
 MAKE_PreconditionOptimizer32bit2State(ADAM, float)
 MAKE_PreconditionOptimizer32bit2State(ADAM, half)
-MAKE_PreconditionOptimizer32bit2State(ADAM, hip_bfloat16)
+// MAKE_PreconditionOptimizer32bit2State(ADAM, hip_bfloat16)
 
 template __global__ void kOptimizer32bit2State<float, ADAM>(float* g, float* p, float* state1, float* state2, float *unorm, const float max_unorm, const float param_norm,
     const float beta1, const float beta2, const float eps, const float weight_decay,const int step, const float lr, const float gnorm_scale, const bool skip_zeros, const int n);
 template __global__ void kOptimizer32bit2State<half, ADAM>(half* g, half* p, float* state1, float* state2, float *unorm, const float max_unorm, const float param_norm,
     const float beta1, const float beta2, const float eps, const float weight_decay,const int step, const float lr, const float gnorm_scale, const bool skip_zeros, const int n);
-template __global__ void kOptimizer32bit2State<hip_bfloat16, ADAM>(hip_bfloat16* g, hip_bfloat16* p, float* state1, float* state2, float *unorm, const float max_unorm, const float param_norm,
-    const float beta1, const float beta2, const float eps, const float weight_decay,const int step, const float lr, const float gnorm_scale, const bool skip_zeros, const int n);
+// template __global__ void kOptimizer32bit2State<hip_bfloat16, ADAM>(hip_bfloat16* g, hip_bfloat16* p, float* state1, float* state2, float *unorm, const float max_unorm, const float param_norm,
+//     const float beta1, const float beta2, const float eps, const float weight_decay,const int step, const float lr, const float gnorm_scale, const bool skip_zeros, const int n);
 
 #define MAKE_PreconditionStatic8bit1State(oname, gtype) \
 template __global__ void kPreconditionOptimizerStatic8bit1State<gtype, oname>(gtype* p, gtype* __restrict__ const g, unsigned char*__restrict__  const state1,  \
@@ -3637,7 +3654,7 @@ MAKE_kQuantizeBlockwise(half,  1024, 4, 0, General8bit)
 MAKE_kQuantizeBlockwise(half,   512, 2, 0, General8bit)
 MAKE_kQuantizeBlockwise(half,   256, 2, 0, General8bit)
 MAKE_kQuantizeBlockwise(half,   128, 2, 0, General8bit)
-MAKE_kQuantizeBlockwise(half,    64, 2, 0, General8bit)
+MAKE_kQuantizeBlockwise(half,    64, 1, 0, General8bit)
 MAKE_kQuantizeBlockwise(float, 4096, 4, 0, General8bit)
 MAKE_kQuantizeBlockwise(float, 4096, 4, 1, General8bit)
 MAKE_kQuantizeBlockwise(float, 2048, 4, 0, General8bit)
@@ -3645,35 +3662,35 @@ MAKE_kQuantizeBlockwise(float, 1024, 4, 0, General8bit)
 MAKE_kQuantizeBlockwise(float,  512, 2, 0, General8bit)
 MAKE_kQuantizeBlockwise(float,  256, 2, 0, General8bit)
 MAKE_kQuantizeBlockwise(float,  128, 2, 0, General8bit)
-MAKE_kQuantizeBlockwise(float,   64, 2, 0, General8bit)
+MAKE_kQuantizeBlockwise(float,   64, 1, 0, General8bit)
 MAKE_kQuantizeBlockwise(half,  4096, 4, 0, FP4)
 MAKE_kQuantizeBlockwise(half,  2048, 4, 0, FP4)
 MAKE_kQuantizeBlockwise(half,  1024, 4, 0, FP4)
 MAKE_kQuantizeBlockwise(half,   512, 2, 0, FP4)
 MAKE_kQuantizeBlockwise(half,   256, 2, 0, FP4)
 MAKE_kQuantizeBlockwise(half,   128, 2, 0, FP4)
-MAKE_kQuantizeBlockwise(half,    64, 2, 0, FP4)
+MAKE_kQuantizeBlockwise(half,    64, 1, 0, FP4)
 MAKE_kQuantizeBlockwise(float, 4096, 4, 0, FP4)
 MAKE_kQuantizeBlockwise(float, 2048, 4, 0, FP4)
 MAKE_kQuantizeBlockwise(float, 1024, 4, 0, FP4)
 MAKE_kQuantizeBlockwise(float,  512, 2, 0, FP4)
 MAKE_kQuantizeBlockwise(float,  256, 2, 0, FP4)
 MAKE_kQuantizeBlockwise(float,  128, 2, 0, FP4)
-MAKE_kQuantizeBlockwise(float,   64, 2, 0, FP4)
+MAKE_kQuantizeBlockwise(float,   64, 1, 0, FP4)
 MAKE_kQuantizeBlockwise(half,  4096, 4, 0, NF4)
 MAKE_kQuantizeBlockwise(half,  2048, 4, 0, NF4)
 MAKE_kQuantizeBlockwise(half,  1024, 4, 0, NF4)
 MAKE_kQuantizeBlockwise(half,   512, 2, 0, NF4)
 MAKE_kQuantizeBlockwise(half,   256, 2, 0, NF4)
 MAKE_kQuantizeBlockwise(half,   128, 2, 0, NF4)
-MAKE_kQuantizeBlockwise(half,    64, 2, 0, NF4)
+MAKE_kQuantizeBlockwise(half,    64, 1, 0, NF4)
 MAKE_kQuantizeBlockwise(float, 4096, 4, 0, NF4)
 MAKE_kQuantizeBlockwise(float, 2048, 4, 0, NF4)
 MAKE_kQuantizeBlockwise(float, 1024, 4, 0, NF4)
 MAKE_kQuantizeBlockwise(float,  512, 2, 0, NF4)
 MAKE_kQuantizeBlockwise(float,  256, 2, 0, NF4)
 MAKE_kQuantizeBlockwise(float,  128, 2, 0, NF4)
-MAKE_kQuantizeBlockwise(float,   64, 2, 0, NF4)
+MAKE_kQuantizeBlockwise(float,   64, 1, 0, NF4)
 
 template __global__ void kDequantizeBlockwise<half, 512, 64, 8, FP4>(float *code, unsigned char * A, float * absmax, half *out, const int blocksize, const int n);
 template __global__ void kDequantizeBlockwise<float, 512, 64, 8, FP4>(float *code, unsigned char * A, float * absmax, float *out, const int blocksize, const int n);
@@ -3693,7 +3710,7 @@ template __global__ void kOptimizerStatic8bit2StateBlockwise<gtype, oname, block
 
 MAKE_OptimizerStatic8bit2StateBlockwise(ADAM, float, 2048, 8)
 MAKE_OptimizerStatic8bit2StateBlockwise(ADAM, half, 2048, 8)
-MAKE_OptimizerStatic8bit2StateBlockwise(ADAM, hip_bfloat16, 2048, 8)
+// MAKE_OptimizerStatic8bit2StateBlockwise(ADAM, hip_bfloat16, 2048, 8)
 
 #define MAKE_OptimizerStatic8bit1StateBlockwise(oname, gtype, block_size, num_per_thread) \
 template __global__ void kOptimizerStatic8bit1StateBlockwise<gtype, oname, block_size, num_per_thread>( \
@@ -3711,6 +3728,6 @@ MAKE_OptimizerStatic8bit1StateBlockwise(RMSPROP, float, 2048, 8)
 MAKE_OptimizerStatic8bit1StateBlockwise(RMSPROP, half, 2048, 8)
 MAKE_OptimizerStatic8bit1StateBlockwise(LION, float, 2048, 8)
 MAKE_OptimizerStatic8bit1StateBlockwise(LION, half, 2048, 8)
-MAKE_OptimizerStatic8bit1StateBlockwise(LION, hip_bfloat16, 2048, 8)
+// MAKE_OptimizerStatic8bit1StateBlockwise(LION, hip_bfloat16, 2048, 8)
 MAKE_OptimizerStatic8bit1StateBlockwise(ADAGRAD, float, 2048, 8)
 MAKE_OptimizerStatic8bit1StateBlockwise(ADAGRAD, half, 2048, 8)
